@@ -1,1 +1,1 @@
-Spire.Doc.Free
+spire.doc.free

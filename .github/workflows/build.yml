@@ -20,14 +20,87 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-          pip install --index-url https://pypi.org/simple/ spire.doc.free || pip install spire.doc
+          pip install spire.doc.free
       
-      - name: Build app
+      - name: Create spec file with all dependencies
         run: |
-          pyinstaller --onefile --windowed --name="ODT_to_DOCX_Converter" converter_app.py
+          cat > converter.spec << 'EOF'
+          # -*- mode: python ; coding: utf-8 -*-
+
+          a = Analysis(
+              ['converter_app.py'],
+              pathex=[],
+              binaries=[],
+              datas=[],
+              hiddenimports=['spire.doc.free', 'spire.doc.common'],
+              hookspath=[],
+              hooksconfig={},
+              runtime_hooks=[],
+              excludes=[],
+              noarchive=False,
+          )
+
+          # Добавляем все файлы из пакета spire
+          import os
+          import sys
+          from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_binaries
+
+          # Собираем все файлы spire.doc
+          datas, binaries, hiddenimports = collect_all('spire')
+          a.datas += datas
+          a.binaries += binaries
+          a.hiddenimports += hiddenimports
+
+          # Добавляем дополнительные файлы данных
+          a.datas += collect_data_files('spire')
+
+          pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+
+          exe = EXE(
+              pyz,
+              a.scripts,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              [],
+              name='ODT_to_DOCX_Converter',
+              debug=False,
+              bootloader_ignore_signals=False,
+              strip=False,
+              upx=True,
+              upx_exclude=[],
+              runtime_tmpdir=None,
+              console=False,
+              disable_windowed_traceback=False,
+              argv_emulation=False,
+              target_arch=None,
+              codesign_identity=None,
+              entitlements_file=None,
+          )
+
+          app = BUNDLE(
+              exe,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              [],
+              name='ODT_to_DOCX_Converter',
+              info_plist={
+                  'CFBundleName': 'ODT to DOCX Converter',
+                  'CFBundleDisplayName': 'ODT to DOCX Converter',
+                  'CFBundleIdentifier': 'com.yourapp.odtconverter',
+                  'CFBundleVersion': '1.0.0',
+                  'CFBundleShortVersionString': '1.0.0',
+              },
+          )
+          EOF
+      
+      - name: Build app with spec file
+        run: |
+          pyinstaller converter.spec
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: dist/ODT_to_DOCX_Converter
+          path: dist/ODT_to_DOCX_Converter.app
